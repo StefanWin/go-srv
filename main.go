@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"log"
@@ -46,7 +47,9 @@ func main() {
 
 	go func() {
 		if err := srv.ListenAndServe(); err != nil {
-			log.Fatal(err)
+			if !errors.Is(err, http.ErrServerClosed) {
+				log.Fatal(err)
+			}
 		}
 	}()
 
