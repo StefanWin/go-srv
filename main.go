@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	_ "embed"
 	"errors"
 	"flag"
 	"fmt"
@@ -13,6 +14,7 @@ import (
 )
 
 var (
+	//go:embed VERSION
 	appVersion  string
 	buildTime   string
 	buildCommit string
