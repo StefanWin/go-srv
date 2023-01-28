@@ -12,3 +12,8 @@ $> go-srv --quiet # disable logging
 ## flags
 - `--port=1234` - specify which port to run on (default: `6969`)
 - `--quiet` - disable logging to `stdout`
+
+## build
+- clone the repository
+- `go install`
+- alternatively, you can download a release from the sidebar

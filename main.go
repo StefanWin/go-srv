@@ -12,6 +12,12 @@ import (
 	"time"
 )
 
+var (
+	appVersion  string
+	buildTime   string
+	buildCommit string
+)
+
 func loggingMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		log.Printf("[%s]: %s\n", r.Method, r.URL)
@@ -20,6 +26,8 @@ func loggingMiddleware(next http.Handler) http.Handler {
 }
 
 func main() {
+	fmt.Printf("go-srv %s (%s %s)\n", appVersion, buildCommit, buildTime)
+
 	port := 6969
 	flag.IntVar(&port, "port", 6969, "")
 
