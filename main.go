@@ -1,10 +1,14 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"log"
 	"net/http"
+	"os"
+	"os/signal"
+	"time"
 )
 
 func loggingMiddleware(next http.Handler) http.Handler {
@@ -25,12 +29,30 @@ func main() {
 
 	host := fmt.Sprintf(":%d", port)
 
-	if quiet {
-		http.Handle("/", http.FileServer(http.Dir(".")))
-	} else {
-		log.Printf("running on: '%s'\n", host)
-		http.Handle("/", loggingMiddleware(http.FileServer(http.Dir("."))))
+	handler := http.FileServer(http.Dir("."))
+
+	if !quiet {
+		log.Printf("running on: %s\n", host)
+		handler = loggingMiddleware(handler)
 	}
 
-	http.ListenAndServe(host, nil)
+	srv := http.Server{
+		Addr:         host,
+		WriteTimeout: time.Second * 15,
+		ReadTimeout:  time.Second * 15,
+		IdleTimeout:  time.Second * 60,
+		Handler:      handler,
+	}
+
+	go func() {
+		if err := srv.ListenAndServe(); err != nil {
+			log.Fatal(err)
+		}
+	}()
+
+	ch := make(chan os.Signal, 1)
+	signal.Notify(ch, os.Interrupt)
+	<-ch
+	srv.Shutdown(context.Background())
+	os.Exit(0)
 }
