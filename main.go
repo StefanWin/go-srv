@@ -13,13 +13,6 @@ import (
 	"time"
 )
 
-var (
-	//go:embed VERSION
-	appVersion  string
-	buildTime   string
-	buildCommit string
-)
-
 func loggingMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		log.Printf("[%s]: %s\n", r.Method, r.URL)
@@ -28,7 +21,6 @@ func loggingMiddleware(next http.Handler) http.Handler {
 }
 
 func main() {
-	fmt.Printf("go-srv %s (%s %s)\n", appVersion, buildCommit, buildTime)
 
 	port := 6969
 	flag.IntVar(&port, "port", 6969, "")
@@ -42,8 +34,14 @@ func main() {
 
 	handler := http.FileServer(http.Dir("."))
 
+	cwd, err := os.Getwd()
+
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	if !quiet {
-		log.Printf("running on: %s\n", host)
+		log.Printf("running on: %s in '%s'", host, cwd)
 		handler = loggingMiddleware(handler)
 	}
 

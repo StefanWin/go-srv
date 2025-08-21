@@ -4,27 +4,26 @@ on:
   release:
     types: [created]
 
+permissions:
+    contents: write
+    packages: write
+
 jobs:
   release:
     name: release
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        goos: [linux, windows]
-        goarch: [amd64]
+        goos: [linux, windows, darwin]
+        goarch: [amd64, arm64]
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
         name: checkout
-      - name: get-build-time
-        run: echo BUILD_TIME=$(date) >> ${GITHUB_ENV}
-      - name: get-build-commit
-        run: echo "BUILD_COMMIT=$(git rev-parse --short HEAD)" >> ${GITHUB_ENV}
-      - uses: wangyoucao577/go-release-action@v1.35
+      - uses: wangyoucao577/go-release-action@v1.53
         name: release-assets
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          goversion: 1.19
+          goversion: 1.25
           md5sum: false
           goos: ${{ matrix.goos }}
           goarch: ${{ matrix.goarch }}
-          ldflags: -X "main.buildTime=${{ env.BUILD_TIME }}" -X "main.buildCommit=${{ env.BUILD_COMMIT }}"
