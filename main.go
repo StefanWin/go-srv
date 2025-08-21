@@ -41,6 +41,7 @@ func main() {
 	}
 
 	if !quiet {
+		log.Println("go-srv - a local web-server for the CWD")
 		log.Printf("running on: %s in '%s'", host, cwd)
 		handler = loggingMiddleware(handler)
 	}
