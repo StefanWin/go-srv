@@ -1,6 +1,6 @@
 # `go-srv`
 
-Commandline tool to start a http fileserver in the current directory.
+Commandline tool to start a http fileserver in the current directory (`$CWD`).
 
 ## usage
 ```bash
@@ -17,3 +17,8 @@ $> go-srv --quiet # disable logging
 - clone the repository
 - `go install`
 - alternatively, you can download a release from the sidebar
+
+# releases
+pre-built releases are available [here](https://github.com/StefanWin/go-srv/releases)
+- pre-built OS targets: `linux`, `windows`, `darwin`
+- pre-built architectures: `amd64`, `arm64`
