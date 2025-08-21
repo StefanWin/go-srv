@@ -22,10 +22,13 @@ func loggingMiddleware(next http.Handler) http.Handler {
 func main() {
 
 	port := 6969
-	flag.IntVar(&port, "port", 6969, "")
+	flag.IntVar(&port, "port", 6969, "the port the server runs on")
 
 	quiet := false
-	flag.BoolVar(&quiet, "quiet", false, "")
+	flag.BoolVar(&quiet, "quiet", false, "disable logging")
+
+	readTimeout := 15
+	flag.IntVar(&readTimeout, "read-timeout", 15, "specify the http servers read timeout in seconds")
 
 	flag.Parse()
 
@@ -42,15 +45,16 @@ func main() {
 	if !quiet {
 		log.Println("go-srv - a local web-server for the CWD")
 		log.Printf("running on: %s in '%s'", host, cwd)
+		log.Printf("read-timeout: %ds\n", readTimeout)
 		handler = loggingMiddleware(handler)
 	}
 
 	srv := http.Server{
-		Addr:         host,
-		WriteTimeout: time.Second * 15,
-		ReadTimeout:  time.Second * 15,
-		IdleTimeout:  time.Second * 60,
-		Handler:      handler,
+		Addr:              host,
+		WriteTimeout:      time.Second * 15,
+		ReadHeaderTimeout: time.Second * time.Duration(readTimeout),
+		IdleTimeout:       time.Second * 60,
+		Handler:           handler,
 	}
 
 	go func() {
