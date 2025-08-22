@@ -12,6 +12,15 @@ import (
 	"time"
 )
 
+func noCacheMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Cache-Control", "no-store, no-cache, must-revalidate")
+		w.Header().Set("Pragma", "no-cache")
+		w.Header().Set("Expires", "0")
+		next.ServeHTTP(w, r)
+	})
+}
+
 func loggingMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		log.Printf("[%s]: %s\n", r.Method, r.URL)
@@ -34,27 +43,31 @@ func main() {
 
 	host := fmt.Sprintf(":%d", port)
 
-	handler := http.FileServer(http.Dir("."))
-
 	cwd, err := os.Getwd()
 
 	if err != nil {
 		log.Fatal(err)
 	}
 
+	fs := http.FileServer(http.Dir(cwd))
+	fs = noCacheMiddleware(fs)
+
 	if !quiet {
 		log.Println("go-srv - a local web-server for the CWD")
 		log.Printf("running on: %s in '%s'", host, cwd)
 		log.Printf("read-timeout: %ds\n", readTimeout)
-		handler = loggingMiddleware(handler)
+		fs = loggingMiddleware(fs)
 	}
 
-	srv := http.Server{
+	mux := http.NewServeMux()
+	mux.Handle("/", fs)
+
+	srv := &http.Server{
 		Addr:              host,
 		WriteTimeout:      time.Second * 15,
 		ReadHeaderTimeout: time.Second * time.Duration(readTimeout),
 		IdleTimeout:       time.Second * 60,
-		Handler:           handler,
+		Handler:           mux,
 	}
 
 	go func() {
