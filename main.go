@@ -33,6 +33,9 @@ func main() {
 	port := 6969
 	flag.IntVar(&port, "port", 6969, "the port the server runs on")
 
+	bind := "localhost"
+	flag.StringVar(&bind, "bind", "localhost", "the network interface to bind to (use 0.0.0.0 for all interfaces)")
+
 	quiet := false
 	flag.BoolVar(&quiet, "quiet", false, "disable logging")
 
@@ -41,7 +44,7 @@ func main() {
 
 	flag.Parse()
 
-	host := fmt.Sprintf(":%d", port)
+	host := fmt.Sprintf("%s:%d", bind, port)
 
 	cwd, err := os.Getwd()
 
