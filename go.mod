@@ -1,3 +1,3 @@
-module go-srv
+module github.com/StefanWin/go-srv
 
 go 1.25
