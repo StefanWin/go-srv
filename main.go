@@ -5,6 +5,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io/fs"
 	"log"
 	"net"
 	"net/http"
@@ -98,10 +99,57 @@ func parseHeaders(headerStr string) map[string]string {
 	return headers
 }
 
+// isDotPath reports whether any segment of the slash-separated path name
+// starts with a dot, e.g. "/.git/config" or "/app/.env".
+func isDotPath(name string) bool {
+	for part := range strings.SplitSeq(name, "/") {
+		if strings.HasPrefix(part, ".") {
+			return true
+		}
+	}
+	return false
+}
+
+// dotFileHidingFS hides dotfiles and dot-directories: opening one fails as
+// if it did not exist, and directory listings leave them out.
+type dotFileHidingFS struct {
+	http.FileSystem
+}
+
+func (fsys dotFileHidingFS) Open(name string) (http.File, error) {
+	if isDotPath(name) {
+		return nil, fs.ErrNotExist
+	}
+	f, err := fsys.FileSystem.Open(name)
+	if err != nil {
+		return nil, err
+	}
+	return dotFileHidingFile{f}, nil
+}
+
+type dotFileHidingFile struct {
+	http.File
+}
+
+func (f dotFileHidingFile) Readdir(n int) ([]fs.FileInfo, error) {
+	entries, err := f.File.Readdir(n)
+	visible := entries[:0]
+	for _, e := range entries {
+		if !strings.HasPrefix(e.Name(), ".") {
+			visible = append(visible, e)
+		}
+	}
+	return visible, err
+}
+
 // buildHandler assembles the middleware chain. Custom headers are applied
 // innermost so they run last and can override the no-cache and CORS defaults.
-func buildHandler(serveDir string, headers map[string]string, cors, logging bool) http.Handler {
-	var h http.Handler = http.FileServer(http.Dir(serveDir))
+func buildHandler(serveDir string, headers map[string]string, cors, logging, dotfiles bool) http.Handler {
+	var root http.FileSystem = http.Dir(serveDir)
+	if !dotfiles {
+		root = dotFileHidingFS{root}
+	}
+	var h http.Handler = http.FileServer(root)
 	if len(headers) > 0 {
 		h = customHeadersMiddleware(headers)(h)
 	}
@@ -121,6 +169,7 @@ func main() {
 	dir := flag.String("dir", "", "directory to serve (defaults to current working directory)")
 	quiet := flag.Bool("quiet", false, "disable logging")
 	cors := flag.Bool("cors", false, "enable CORS headers")
+	dotfiles := flag.Bool("dotfiles", false, "serve dotfiles and dot-directories such as .git and .env (hidden by default)")
 	open := flag.Bool("open", false, "automatically open browser on startup")
 	customHeaders := flag.String("headers", "", "custom headers in format 'Key1:Value1,Key2:Value2'")
 	readTimeout := flag.Int("read-timeout", 15, "specify the http servers read timeout in seconds")
@@ -148,7 +197,7 @@ func main() {
 
 	srv := &http.Server{
 		Addr:              host,
-		Handler:           buildHandler(serveDir, headers, *cors, !*quiet),
+		Handler:           buildHandler(serveDir, headers, *cors, !*quiet, *dotfiles),
 		ReadTimeout:       time.Second * time.Duration(*readTimeout),
 		ReadHeaderTimeout: time.Second * time.Duration(*readTimeout),
 		WriteTimeout:      time.Second * time.Duration(*writeTimeout),
@@ -168,6 +217,9 @@ func main() {
 		log.Printf("read-timeout: %ds, write-timeout: %ds", *readTimeout, *writeTimeout)
 		if *cors {
 			log.Println("CORS: enabled")
+		}
+		if *dotfiles {
+			log.Println("dotfiles: served")
 		}
 		if len(headers) > 0 {
 			log.Printf("custom headers: %s", *customHeaders)

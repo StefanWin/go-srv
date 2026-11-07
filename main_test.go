@@ -1,10 +1,12 @@
 package main
 
 import (
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -49,7 +51,7 @@ func TestCustomHeadersOverrideDefaults(t *testing.T) {
 	h := buildHandler(dir, map[string]string{
 		"Cache-Control":               "max-age=60",
 		"Access-Control-Allow-Origin": "https://example.com",
-	}, true, false)
+	}, true, false, false)
 
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/a.txt", nil))
@@ -66,7 +68,7 @@ func TestCustomHeadersOverrideDefaults(t *testing.T) {
 }
 
 func TestCORSPreflight(t *testing.T) {
-	h := buildHandler(t.TempDir(), nil, true, false)
+	h := buildHandler(t.TempDir(), nil, true, false, false)
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, httptest.NewRequest(http.MethodOptions, "/", nil))
 	if rec.Code != http.StatusNoContent {
@@ -74,5 +76,61 @@ func TestCORSPreflight(t *testing.T) {
 	}
 	if rec.Header().Get("Access-Control-Allow-Origin") != "*" {
 		t.Error("missing Access-Control-Allow-Origin")
+	}
+}
+
+func TestDotfiles(t *testing.T) {
+	dir := t.TempDir()
+	for _, p := range []string{".env", ".git/config", "sub/.secret", "sub/ok.txt", "visible.txt"} {
+		full := filepath.Join(dir, filepath.FromSlash(p))
+		if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(full, []byte(p), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	get := func(h http.Handler, path string) (int, string) {
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, path, nil))
+		body, _ := io.ReadAll(rec.Body)
+		return rec.Code, string(body)
+	}
+
+	hidden := buildHandler(dir, nil, false, false, false)
+	for _, p := range []string{"/.env", "/.git/config", "/.git/", "/sub/.secret"} {
+		if code, _ := get(hidden, p); code != http.StatusNotFound {
+			t.Errorf("hidden: GET %s = %d, want 404", p, code)
+		}
+	}
+	for _, p := range []string{"/visible.txt", "/sub/ok.txt"} {
+		if code, _ := get(hidden, p); code != http.StatusOK {
+			t.Errorf("hidden: GET %s = %d, want 200", p, code)
+		}
+	}
+	for path, listing := range map[string][]string{"/": {".env", ".git"}, "/sub/": {".secret"}} {
+		code, body := get(hidden, path)
+		if code != http.StatusOK {
+			t.Fatalf("hidden: GET %s = %d", path, code)
+		}
+		for _, name := range listing {
+			if strings.Contains(body, name) {
+				t.Errorf("hidden: listing of %s contains %s", path, name)
+			}
+		}
+	}
+	if _, body := get(hidden, "/"); !strings.Contains(body, "visible.txt") {
+		t.Error("hidden: listing of / is missing visible.txt")
+	}
+
+	shown := buildHandler(dir, nil, false, false, true)
+	for _, p := range []string{"/.env", "/.git/config", "/sub/.secret"} {
+		if code, _ := get(shown, p); code != http.StatusOK {
+			t.Errorf("dotfiles on: GET %s = %d, want 200", p, code)
+		}
+	}
+	if _, body := get(shown, "/"); !strings.Contains(body, ".env") {
+		t.Error("dotfiles on: listing of / is missing .env")
 	}
 }
